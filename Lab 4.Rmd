@@ -1,0 +1,218 @@
+---
+title: 'Lab 4 - Math 58 / 58b: error rates'
+author: "solutions"
+date: "due Feb 18, 2020"
+output:
+  pdf_document: default
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, fig.height=2.5, 
+                      fig.width=5, fig.align = "center")
+library(tidyverse)
+library(dslabs)
+```
+
+
+## Lab Goals
+
+Computing a confidence interval for a single proportion
+
+* why 0.05?
+* what does a p-value really mean?
+* how / why is there (is there not) a single result for a research questions?
+
+
+## Getting started
+
+### Load packages
+
+In this lab we will continue to use `infer` and the `xpnorm` function which is in the `mosaic` package.
+
+Let's load the packages.
+
+```{r load-packages, message=FALSE}
+library(tidyverse)  # ggplot lives in the tidyverse
+library(mosaic)  # where xqnorm lives
+library(infer)  
+```
+
+### The data
+
+(The data is only for #1.  The other questions do not require data.)
+
+Researchers have conjectured that the use of the word "forbid" is more off-putting than the word "allow" (in affecting people's responses to survey questions).  In particular, the  suggestion is that people do not like to "forbid" anything.  Students in an introductory statistics class were randomly assigned to answer one of the following questions:
+
+ * Should your college allow speeches on campus that might incite violence?  
+ * Should your college forbid speeches on campus that might incite violence?  
+    
+Of the 14 students who received the first question, 8 responded yes.  Of the 15 students who received the second question, 13 said no.  Think carefully about the response variable.  It should *not* be coded as "yes" and "no" as answered on the questionnaire.  
+
+
+### To Turn In
+
+1.  In this first question, you will analyze the data above using some old ideas and some new ideas.
+
+(a)  Plot the observed data using `geom_bar()` and use `fill = response` to fill the bars in with appropriate colors, where `response` represents whatever you called the variable representing how the students responded to the survey.
+
+
+(b) Use `infer` to analyze the data.  Report the one-sided p-value (you will report the conclusion in words below in part (d)).
+
+(c) Use the following formula (sort of new idea here, we'll see this one again later!, see page 129 in your text) to create a Z-score for the same test as was done with `infer`.  Use R as a calculator to find the relevant Z-score, and find the one-sided p-value (you will report the conclusion in words below in part (d)).
+
+$$\mbox{Z score} = \frac{(\hat{p}_1 - \hat{p}_2) - 0}{\sqrt{\frac{\hat{p}_1(1-\hat{p_1})}{n_1} + \frac{\hat{p}_2(1-\hat{p_2})}{n_2}}}$$
+
+(d) Give a complete conclusion to the data analysis / hypothesis test (that is, conclude what you think is most appropriate).  State the null and alternative hypotheses, provide what you believe is the most accurate significance result (compare parts (b) and (c) above), and give a sense of to whom (what population, if any) the results can be applied. 
+
+**Solution**
+
+(d)
+
+For two reasons, it seems most appropriate to *not* claim significance here.  The two reasons are (1) it is always worrisome to conclude significance when there are conflicting results, (2) the test that makes most sense to use (Fisher's exact test) is the one that is not significant.
+
+Although the data are in the direction of the alternative hypothesis (that is, the "forbid" group is less likely to allow the speeches), the data are not conclusive about the result.  That is, there is no evidence to claim that the words lead to differences in rates of allowing the speeches.
+
+Because there was no conclusion of interest, it does not make sense to worry about the larger population or the causal mechanism.  However, if the result had been significant, the phrasing of the questions *would have* been assumed to be the causal mechanism (due to the random allocation).  It is not clear what population the students came from, but clearly college students are different from other members of a larger population, so we would certainly not feel comfortable inferring beyond college students.
+
+(a)
+```{r}
+# first create a data frame with the survey data
+decision <- data.frame(survey = c(rep("allow", 14), rep("forbid", 15)), 
+                         response = c(rep("okay", 8), rep("notokay", 6),
+                                   rep("notokay", 2), rep("okay", 13)))
+
+ggplot(decision) +
+  geom_bar(aes(x=survey, fill = response))
+```
+
+(b)  p-value is close to 0.08  (results will vary slightly due to random permutations, mine is 0.084).
+```{r}
+set.seed(47)
+# then find the difference in proportion who lied
+(diff_obs <- decision %>%
+    specify(response ~ survey, success = "okay") %>%
+    calculate(stat = "diff in props", order = c("allow", "forbid")) )
+
+
+# now apply the infer framework to get the null differences in proportions
+null_decision <- decision  %>%
+  specify(response ~ survey, success = "okay") %>%
+  hypothesize(null = "independence") %>%
+  generate(reps = 500, type = "permute") %>%
+  calculate(stat = "diff in props", order = c("allow", "forbid"))
+
+# then visualize the null sampling distribution & p-value
+visualize(null_decision, bins = 10) +
+  shade_p_value(obs_stat = diff_obs, direction = "less")
+
+# calculate the actual p-value
+null_decision %>%
+  get_p_value(obs_stat = diff_obs, direction = "less")
+```
+
+(c)  p-value is 0.031.
+
+```{r}
+(p1 = 8/14)
+(p2 = 13/15)
+zscore = (p1-p2) / sqrt( p1*(1-p1)/14 + p2*(1-p2)/15)
+xpnorm(zscore, 0, 1)
+```
+
+
+(d) given above
+
+
+2. Read the ASA's statement on p-values: http://www.tandfonline.com/doi/pdf/10.1080/00031305.2016.1154108  
+
+Choose **two different** principles (pg 131-132) and explain each (separately) as if to a peer in a science class who is making conclusions about a recent study.  Explain in your own words.
+
+**Solution**  
+
+* P-values can indicate how incompatible the data are with a specified statistical model.
+
+A p-value provides one approach to summarizing the incompatibility between a particular set of data and a proposed model for the data. The most common context is a model, constructed under a set of assumptions, together with a so-called “null hypothesis.” Often the null hypothesis postulates the absence of an effect, such as no difference between two groups, or the absence of a relationship between a factor and an outcome. The smaller the p-value, the greater the statistical incompatibility of the data with the null hypothesis, if the underlying assumptions used to calculate the p-value hold. This incompatibility can be interpreted as casting doubt on or providing evidence against the null hypothesis or the underlying assumptions.
+
+* P-values do not measure the probability that the studied hypothesis is true, or the probability that the data were produced by random chance alone.
+
+Researchers often wish to turn a p-value into a statement about the truth of a null hypothesis, or about the probability that random chance produced the observed
+data. The p-value is neither. It is a statement about data in relation to a specified hypothetical explanation, and is not a statement about the explanation itself.
+
+* Scientific conclusions and business or policy decisions should not be based only on whether a p-value passes a specific threshold.
+
+Practices that reduce data analysis or scientific inference to mechanical “bright-line” rules (such as “$p < 0.05$”) for justifying scientific claims or conclusions can lead to erroneous beliefs and poor decision making. A conclusion does not immediately become “true” on one side of the divide and “false” on the other. Researchers should bring many contextual factors into play to derive scientific inferences, including the design of a study, the quality of the measurements, the external evidence for the phenomenon under study, and the validity of assumptions that underlie the data analysis. Pragmatic considerations often require binary, “yes-no” decisions, but this does not mean that p-values alone can ensure that a decision is correct or incorrect. The widespread use of “statistical significance” (generally interpreted as “$p\leq 0.05$”) as a license for making a claim of a scientific finding (or implied truth) leads to considerable distortion of the scientific process.
+
+* Proper inference requires full reporting and transparency
+
+P-values and related analyses should not be reported selectively. Conducting multiple analyses of the data and reporting only those with certain p-values (typically those passing a significance threshold) renders the reported p-values essentially uninterpretable. Cherry picking promising findings, also known by such terms as data dredging, significance chasing, significance questing, selective inference, and “p-hacking,” leads to a spurious excess of statistically significant results in the published literature and should be vigorously avoided. One need not formally carry out multiple statistical tests for this problem to arise: Whenever a researcher chooses what to present based on statistical results, valid interpretation of those results is severely compromised if the reader is not informed of the choice and its basis. Researchers should disclose the number of hypotheses explored during the study, all data collection decisions, all statistical analyses conducted, and all p-values computed. Valid scientific conclusions based on p-values and related statistics cannot be drawn without at least knowing how many and which analyses were conducted, and how those analyses (including p-values) were selected for reporting.
+
+* A p-value, or statistical significance, does not measure the size of an effect or the importance of a result.
+
+Statistical significance is not equivalent to scientific, human, or economic significance. Smaller p-values do not necessarily imply the presence of larger or more important effects, and larger p-values do not imply a lack of importance or even lack of effect. Any effect, no matter how tiny, can produce a small p-value if the sample size or measurement precision is high enough, and large effects may produce unimpressive p-values if the sample size is small or measurements are imprecise. Similarly, identical estimated effects will have different p-values if the precision of the estimates differs.
+
+* By itself, a p-value does not provide a good measure of evidence regarding a model or hypothesis.
+
+Researchers should recognize that a p-value without context or other evidence provides limited information.  For example, a p-value near 0.05 taken by itself offers only weak evidence against the null hypothesis. Likewise, a relatively large p-value does not imply evidence in favor of the null hypothesis; many other hypotheses may be equally or more consistent with the observed data. For these reasons, data analysis should not end with the calculation of a p-value when other approaches are appropriate and feasible.
+
+
+
+3.  Why use p-values at all?  That is, what is benefit of having a p-value (as opposed to simply descriptive statistics or graphs of the data)?  
+
+**Solution**
+
+As we have seen, p-values should be used carefully.  They are not magic bullets or truth serum.  They give us a measure of whether the data are incompatible with a given statistical model (the null hypothesis).  Indeed, the p-value is able to measure the variability associated with the sampling distribution of the statistic in order to quantify the deviation of the data from the null hypothesis.  A descriptive analysis (including descriptive statistics like the sample mean or sample proportion or a plot of the observations) does not take into account the sample size or the natural variability associated with the statistic.  We can learn a lot from graphs of the data, but we also learn a lot from understanding the variability which is given by the p-value.
+
+
+###  If you are still curious about the ideas in this lab (not part of the assignment):
+
+None of the queries below are part of the lab.  I offer them here for people who are intrigued by the ideas we've covered and want to know more.  Indeed, the article linked below (which has been cited 3000+ times and viewed almost 3 million times) has a provocative title  (and is incredibly well written).
+
+
+4.  Read Ioannidis (2005), "Why Most Published Research Findings are False"
+http://www.plosmedicine.org/article/fetchObject.action?uri=info%3Adoi%2F10.1371%2Fjournal.pmed.0020124&representation=PDF
+
+(a)  Consider table 1.  Suppose that the level of significance is taken to be 0.05 and the power is 0.8.  Also, set R (the number of true to not true relationships) to be 2 (for every 3 experiments, one is null).  What percent of research findings (i.e., "significant" findings) are actually true (i.e., Ha is true)?  [hint: for ease of calculation, you can set c to be something like 10,000.]  
+
+
+
+
+Finding  | True Yes | True No | Total
+---------|----------|---------|------
+Yes      | 5333 | 167 | 5500
+No       |1334 | 3166 | 4500
+Total    |  6667 | 3333 | 10000
+
+Out of the 5500 significant findings, it turns out the 5333 of them are true.  Therefore, the proportion of significant findings is 5333/5500 = `r 5333/5500`.
+
+
+(b)  Consider table 1.  Suppose that the level of significance is taken to be 0.05 and the power is 0.3.  Also, set R (the number of true to not true relationships) to be 0.1 (for every 11 experiments, 10 are null).  What percent of research findings (i.e., "significant" findings) are actually true (i.e., Ha is true)?  [hint: for ease of calculation, you can set c to be something like 10,000.] 
+
+Finding  | True Yes | True No | Total
+---------|----------|---------|------
+Yes      | 273 | 455 | 728 
+No       |636 | 8636 | 9272
+Total    |   909 | 9091  | 10000
+
+
+Out of the 728 significant findings, it turns out the 5333 of them are true.  Therefore, the proportion of significant findings is 273/728 = `r 273/728`.  
+
+We notice that the proportion of significant findings is *very* dependent on not only the power, but also on the proportion of experiments which are null to start with.  The 6 important corollaries in the Ioannidis paper all follow from the tables (table 1 and others like it) which reflect on the state of testing beyond just controlling for type I errors using a level of significance of 0.05.  The 6 corollaries contain important ideas to think about in doing science.
+
+5. Follow the link here and click through the scatterplot images (link to work soon!): https://www.openintro.org/stat/why05.php?stat_book=os  
+
+(a) What is your personal level of significance?  
+
+(b) When you hear new information, do you consider yourself on the skeptical side or on the believing side?  (There is no right answer!)
+
+**Solution**
+
+(a) When I ran the applet, I got a personal level of significance of 0.1.
+
+(b) I think I tend to be very skeptical, it is hard for me to believe conclusions unless I see lots of different studies pointing in the same direction.
+
+
+6.  In the Dance of the p-values (https://www.youtube.com/watch?v=5OL1RqHrZQ8), what is the narrator arguing?
+
+**Solution**
+
+The point being made in the Dance of the p-values is that the p-value gives virtually no information about the effect of interest.  A confidence interval gives not only the magnitude of the effect but also the variability associated with the estimate.  That is, the degree of uncertainty in the effect is captured by the width of the interval.  Additionally, in replicates of the same experiment, the p-value can vary widely (from significant to non-significant) whereas a confidence interval captures the true parameter 95% of the time (albeit sometimes overlapping the null value, too).
